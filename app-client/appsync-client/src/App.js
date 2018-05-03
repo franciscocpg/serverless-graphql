@@ -12,13 +12,13 @@ import Profile from './routes/Profile';
 import Search from './routes/Search';
 import { Footer } from './components/helpers';
 
-Amplify.configure({
-  Auth: {
-    region: process.env.REACT_APP_AWS_AUTH_REGION, // REQUIRED - Amazon Cognito Region
-    userPoolId: process.env.REACT_APP_USER_POOL_ID, // OPTIONAL - Amazon Cognito User Pool ID
-    userPoolWebClientId: process.env.REACT_APP_CLIENT_APP_ID, // User Pool App Client ID
-  },
-});
+// Amplify.configure({
+//   Auth: {
+//     region: process.env.REACT_APP_AWS_AUTH_REGION, // REQUIRED - Amazon Cognito Region
+//     userPoolId: process.env.REACT_APP_USER_POOL_ID, // OPTIONAL - Amazon Cognito User Pool ID
+//     userPoolWebClientId: process.env.REACT_APP_CLIENT_APP_ID, // User Pool App Client ID
+//   },
+// });
 
 const client = new AWSAppSyncClient({
   url: process.env.REACT_APP_GRAPHQL_ENDPOINT,
