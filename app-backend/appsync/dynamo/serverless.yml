@@ -7,6 +7,7 @@ provider:
   runtime: nodejs6.10
   stage: dev
   region: us-east-1
+  variableSyntax: "\\${{([ ~:a-zA-Z0-9._\\'\",\\-\\/\\(\\)]+?)}}"
 
 plugins:
   - serverless-dynamodb-local
@@ -14,8 +15,9 @@ plugins:
   - serverless-appsync-plugin
 
 custom:
-  accountId: 307424997672 # replace this with your accountId
-  stage: ${opt:stage, self:provider.stage}
+  stage: ${{opt:stage, 'dev'}}
+  serviceStage: ${{self:service}}-${{self:custom.stage}}
+  userInfoTemplate: ${{file(./mapping-templates/getUserInfo.yml)}}
   dynamodb:
     start:
       port: 8000
@@ -93,31 +95,31 @@ custom:
   #       description: 'Users table'
   #       config:
   #         tableName: 'Users'
-  #         serviceRoleArn: "arn:aws:iam::${self:custom.accountId}:role/Dynamo-${self:custom.appSync.serviceRole}"
+  #         serviceRoleArn: "arn:aws:iam::${{self:custom.accountId}}:role/Dynamo-${{self:custom.appSync.serviceRole}}"
   #     - type: AMAZON_DYNAMODB
   #       name: Tweets
   #       description: 'Tweets table'
   #       config:
   #         tableName: 'Tweets'
-  #         serviceRoleArn: "arn:aws:iam::${self:custom.accountId}:role/Dynamo-${self:custom.appSync.serviceRole}"
+  #         serviceRoleArn: "arn:aws:iam::${{self:custom.accountId}}:role/Dynamo-${{self:custom.appSync.serviceRole}}"
 
 resources:
   Resources:
-    # UserTable:
-    #   Type: "AWS::DynamoDB::Table"
-    #   Properties:
-    #     KeySchema:
-    #       -
-    #         AttributeName: handle
-    #         KeyType: HASH
-    #     AttributeDefinitions:
-    #       -
-    #         AttributeName: handle
-    #         AttributeType: S
-    #     ProvisionedThroughput:
-    #       ReadCapacityUnits: 10
-    #       WriteCapacityUnits: 10
-    #     TableName: "Users"
+    UsersTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        KeySchema:
+          -
+            AttributeName: handle
+            KeyType: HASH
+        AttributeDefinitions:
+          -
+            AttributeName: handle
+            AttributeType: S
+        ProvisionedThroughput:
+          ReadCapacityUnits: 10
+          WriteCapacityUnits: 10
+        TableName: "${{self:custom.serviceStage}}-Users"
     # TweetsTable:
     #   Type: "AWS::DynamoDB::Table"
     #   Properties:
@@ -174,48 +176,187 @@ resources:
     GraphQLApi:
       Type: "AWS::AppSync::GraphQLApi"
       Properties:
-        Name: "chico-test-api"
+        Name: "${{self:custom.serviceStage}}-api"
         AuthenticationType: API_KEY
     ApiKey:
       Type: "AWS::AppSync::ApiKey"
       DependsOn:
-      - GraphQLApi
+        - GraphQLApi
       Properties:
         ApiId: 
           "Fn::GetAtt": [ GraphQLApi, ApiId ]
         Expires: 1528056650
-    # AppSyncServiceRole:
-    #   Type: "AWS::IAM::Role"
-    #   Properties:
-    #     RoleName: "Dynamo-AppSyncServiceRole"
-    #     AssumeRolePolicyDocument:
-    #       Version: "2012-10-17"
-    #       Statement:
-    #         -
-    #           Effect: "Allow"
-    #           Principal:
-    #             Service:
-    #               - "appsync.amazonaws.com"
-    #           Action:
-    #             - "sts:AssumeRole"
-    #     Policies:
-    #       -
-    #         PolicyName: "Dynamo-AppSyncServiceRole-Policy"
-    #         PolicyDocument:
-    #           Version: "2012-10-17"
-    #           Statement:
-    #             -
-    #               Effect: "Allow"
-    #               Action:
-    #                 - "dynamodb:Query"
-    #                 - "dynamodb:BatchWriteItem"
-    #                 - "dynamodb:GetItem"
-    #                 - "dynamodb:DeleteItem"
-    #                 - "dynamodb:PutItem"
-    #                 - "dynamodb:Scan"
-    #                 - "dynamodb:UpdateItem"
-    #               Resource:
-    #                 - "arn:aws:dynamodb:us-east-1:*:table/Users"
-    #                 - "arn:aws:dynamodb:us-east-1:*:table/Users/*"
-    #                 - "arn:aws:dynamodb:us-east-1:*:table/Tweets"
-    #                 - "arn:aws:dynamodb:us-east-1:*:table/Tweets/*"
+    Schema:
+      Type: "AWS::AppSync::GraphQLSchema"
+      DependsOn:
+        - GraphQLApi
+      Properties:
+        ApiId:
+          "Fn::GetAtt": [ GraphQLApi, ApiId ]
+        Definition: |
+          type Mutation {
+            createTweet(
+              tweet: String!,
+              consumer_key: String,
+              consumer_secret: String,
+              access_token_key: String,
+              access_token_secret: String,
+              created_at: String!
+            ): Tweet!
+
+            deleteTweet(
+              tweet_id: String!,
+              consumer_key: String,
+              consumer_secret: String,
+              access_token_key: String,
+              access_token_secret: String
+            ): Tweet!
+
+            reTweet(
+              tweet_id: String!,
+              consumer_key: String,
+              consumer_secret: String,
+              access_token_key: String,
+              access_token_secret: String
+            ): Tweet!
+
+            updateTweet(tweet_id: String!, tweet: String!): Tweet!
+
+            updateUserInfo(
+              location: String!,
+              description: String!,
+              name: String!,
+              followers_count: Int!,
+              friends_count: Int!,
+              favourites_count: Int!,
+              following: [String!]!
+            ): User!
+          }
+
+          type Query {
+            meInfo(consumer_key: String, consumer_secret: String): User!
+            getUserInfo(handle: String!, consumer_key: String, consumer_secret: String): [User]
+
+            searchAllTweetsByKeyword(keyword: String!): TweetConnection
+          }
+
+          type Subscription {
+            addTweet: Tweet
+              @aws_subscribe(mutations: ["createTweet"])
+          }
+
+          type Tweet {
+            tweet_id: String!
+            tweet: String!
+            retweeted: Boolean
+            retweet_count: Int
+            favorited: Boolean
+            created_at: String!
+          }
+
+          type TweetConnection {
+            items: [Tweet!]!
+            nextToken: String
+          }
+
+          type User {
+            name: String!
+            handle: String!
+            location: String!
+            description: String!
+            followers_count: Int!
+            friends_count: Int!
+            favourites_count: Int!
+            following: [String!]!
+            topTweet: Tweet
+            tweets(limit: Int!, nextToken: String): TweetConnection
+
+            searchTweetsByKeyword(keyword: String!): TweetConnection
+          }
+
+          schema {
+            query: Query
+            mutation: Mutation
+            subscription: Subscription
+          }
+    DynamoServiceRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        RoleName: "${{self:custom.serviceStage}}-Dynamo-ServiceRole"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Effect: "Allow"
+              Principal:
+                Service:
+                  - "appsync.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        Policies:
+          -
+            PolicyName: "${{self:custom.serviceStage}}-Dynamo-ServiceRole-Policy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - "dynamodb:Query"
+                    - "dynamodb:BatchWriteItem"
+                    - "dynamodb:GetItem"
+                    - "dynamodb:DeleteItem"
+                    - "dynamodb:PutItem"
+                    - "dynamodb:Scan"
+                    - "dynamodb:UpdateItem"
+                  Resource:
+                    - "Fn::GetAtt": [ UsersTable, Arn ]
+                    - 'Fn::Join':
+                      - '/'
+                      -
+                        - "Fn::GetAtt": [ UsersTable, Arn ]
+                        - '*'
+                    # - "arn:aws:dynamodb:us-east-1:*:table/Tweets"
+                    # - "arn:aws:dynamodb:us-east-1:*:table/Tweets/*"
+    UsersDataSource:
+      Type: "AWS::AppSync::DataSource"
+      DependsOn:
+        - GraphQLApi
+        - DynamoServiceRole
+        - UsersTable
+      Properties:
+        ApiId:
+          "Fn::GetAtt": [ GraphQLApi, ApiId ]
+        Name: "UserDataSource"
+        Type: "AMAZON_DYNAMODB"
+        ServiceRoleArn:
+          "Fn::GetAtt": [ DynamoServiceRole, Arn ]
+        DynamoDBConfig:
+          TableName: "${{self:custom.serviceStage}}-Users"
+          AwsRegion: us-east-1
+    Resolver:
+      Type: "AWS::AppSync::Resolver"
+      DependsOn:
+        - GraphQLApi
+        - UsersDataSource
+      Properties:
+        ApiId:
+          "Fn::GetAtt": [ GraphQLApi, ApiId ]
+        TypeName: Query
+        FieldName: getUserInfo
+        DataSourceName: UserDataSource
+        RequestMappingTemplate: |
+          {
+            "version" : "2017-02-28",
+            "operation" : "Query",
+            "query" : {
+                "expression": "handle = :handle",
+                "expressionValues" : {
+                    ":handle" : {
+                        "S" : "${context.arguments.handle}"
+                    }
+                }
+            }
+          }
+        ResponseMappingTemplate: |
+          $util.toJson($context.result.items)

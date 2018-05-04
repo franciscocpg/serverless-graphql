@@ -13,7 +13,7 @@ const allTweets = JSON.parse(fs.readFileSync('Tweets.json', 'utf8'));
 
 allUsers.forEach(function(user) {
   const Userparams = {
-    TableName: 'Users',
+    TableName: 'serverless-graphql-appsync-dynamo-chico-test-Users',
     Item: {
       name: user.name,
       handle: user.handle,
@@ -40,30 +40,30 @@ allUsers.forEach(function(user) {
   });
 });
 
-allTweets.forEach(function(tweet) {
-  const Tweetparams = {
-    TableName: 'Tweets',
-    Item: {
-      handle: tweet.handle,
-      tweet_id: tweet.tweet_id,
-      tweet: tweet.tweet,
-      retweeted: tweet.retweeted,
-      retweet_count: tweet.retweet_count,
-      favorited: tweet.favorited,
-      created_at: tweet.created_at,
-    },
-  };
+// allTweets.forEach(function(tweet) {
+//   const Tweetparams = {
+//     TableName: 'Tweets',
+//     Item: {
+//       handle: tweet.handle,
+//       tweet_id: tweet.tweet_id,
+//       tweet: tweet.tweet,
+//       retweeted: tweet.retweeted,
+//       retweet_count: tweet.retweet_count,
+//       favorited: tweet.favorited,
+//       created_at: tweet.created_at,
+//     },
+//   };
 
-  docClient.put(Tweetparams, function(err, data) {
-    if (err) {
-      console.error(
-        'Unable to add tweet',
-        tweet.tweet_id,
-        '. Error JSON:',
-        JSON.stringify(err, null, 2)
-      );
-    } else {
-      console.log('PutItem succeeded:', tweet.tweet_id);
-    }
-  });
-});
+//   docClient.put(Tweetparams, function(err, data) {
+//     if (err) {
+//       console.error(
+//         'Unable to add tweet',
+//         tweet.tweet_id,
+//         '. Error JSON:',
+//         JSON.stringify(err, null, 2)
+//       );
+//     } else {
+//       console.log('PutItem succeeded:', tweet.tweet_id);
+//     }
+//   });
+// });
